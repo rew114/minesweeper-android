@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#171c2e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="扫雷">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<title>扫雷 · 安卓版</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: radial-gradient(1200px 800px at 20% 0%, #2b3150 0%, #1b2036 45%, #12162a 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(env(safe-area-inset-top, 8px) + 8px) 10px calc(env(safe-area-inset-bottom, 8px) + 8px);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+    color: #e8ecf5;
+  }
+  .card {
+    width: 100%;
+    max-width: 470px;
+    background: rgba(22, 26, 42, .94);
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 18px;
+    padding: 14px 12px 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .title {
+    display: flex; align-items: baseline; justify-content: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .title h1 {
+    font-size: 20px; font-weight: 800; letter-spacing: 2px;
+    background: linear-gradient(90deg, #7ea6ff, #b58cff, #7ea6ff);
+    background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shine 6s linear infinite;
+  }
+  @keyframes shine { to { background-position: 200% 0; } }
+  .title span { font-size: 10px; color: #5c6488; letter-spacing: 3px; }
+
+  .levels {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-bottom: 10px;
+  }
+  .levels button {
+    padding: 9px 8px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    background: rgba(255,255,255,.05);
+    color: #c6cde2;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all .15s ease;
+  }
+  .levels button:active { transform: scale(.96); }
+  .levels button.active {
+    background: linear-gradient(135deg, #4d7cff, #7b5cff);
+    color: #fff; border-color: transparent;
+    box-shadow: 0 4px 14px rgba(90, 90, 255, .35);
+  }
+
+  .info-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #171c2e; border-radius: 12px; padding: 5px 12px;
+    margin-bottom: 8px;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 15px; font-weight: 700; letter-spacing: 1px;
+  }
+  .info-item { display: flex; align-items: center; gap: 5px; min-width: 68px; }
+  .info-item.right { justify-content: flex-end; }
+  .num { color: #ff6b7a; font-size: 17px; }
+  .timer { color: #6fd3a0; font-size: 17px; }
+  .face-btn {
+    width: 38px; height: 38px;
+    border: none; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(145deg, #333b57, #262d45);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,.2), 0 3px 8px rgba(0,0,0,.35);
+    font-size: 19px;
+    transition: transform .1s ease;
+  }
+  .face-btn:active { transform: scale(.9); }
+  .face-btn.win { animation: bounce .5s ease; }
+  @keyframes bounce { 0%,100%{transform:scale(1)} 40%{transform:scale(1.25) rotate(-8deg)} 70%{transform:scale(.95)} }
+
+  .board-wrap { position: relative; }
+  .board {
+    display: grid;
+    gap: 3px;
+    background: #171c2e;
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.4);
+  }
+  .board.shake { animation: shake .4s ease; }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0); }
+    20% { transform: translate(-6px, 2px); }
+    40% { transform: translate(5px, -2px); }
+    60% { transform: translate(-4px, 1px); }
+    80% { transform: translate(3px, -1px); }
+  }
+  .board.celebrate { animation: pop .45s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.03)} 100%{transform:scale(1)} }
+
+  .cell {
+    --s: 40px; /* 由 JS 根据屏幕动态设置 */
+    border: none; border-radius: 5px;
+    width: var(--s); height: var(--s);
+    background: linear-gradient(180deg, #4c5474 0%, #3e4664 100%);
+    box-shadow: inset 0 2px 2px rgba(255,255,255,.28), inset 0 -2px 3px rgba(0,0,0,.38);
+    cursor: pointer;
+    font-size: calc(var(--s) * 0.52);
+    font-weight: 800; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    color: transparent;
+    padding: 0;
+    transition: background .08s ease, transform .06s ease;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+  }
+  .cell:hover { filter: brightness(1.1); }
+  .cell:active { transform: scale(.94); }
+
+  .cell.revealed {
+    background: #262c40;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,.55);
+    cursor: default;
+  }
+  .cell.revealed:hover { filter: none; }
+  .cell.revealed:active { transform: none; }
+
+  .cell svg { width: 62%; height: 62%; pointer-events: none; }
+  .cell.flagged, .cell.question { cursor: pointer; }
+
+  .cell.mine-hit {
+    background: #e0505f !important;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,.5);
+    animation: hit .4s ease;
+  }
+  @keyframes hit { 0%{transform:scale(1)} 30%{transform:scale(1.35)} 60%{transform:scale(.9)} 100%{transform:scale(1)} }
+  .cell.wrong-flag { background: #e0505f !important; }
+
+  .n1 { color: #5c8dff; }
+  .n2 { color: #4cd97a; }
+  .n3 { color: #ff6b6b; }
+  .n4 { color: #8f7bff; }
+  .n5 { color: #f08a4b; }
+  .n6 { color: #2ec4b6; }
+  .n7 { color: #f5d76e; }
+  .n8 { color: #aab2c8; }
+
+  .tip-bar {
+    margin-top: 10px;
+    font-size: 11px; color: #5c6488; text-align: center; line-height: 1.6;
+  }
+  .tip-bar b { color: #8b94b8; font-weight: 600; }
+  .tip-warn {
+    display: none;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(255, 180, 80, .12);
+    border: 1px solid rgba(255, 180, 80, .3);
+    color: #f5c76e; font-size: 11.5px;
+  }
+  .tip-warn.show { display: block; }
+
+  .toast {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(.6);
+    background: rgba(10, 12, 24, .88);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 12px;
+    padding: 10px 22px;
+    font-size: 19px; font-weight: 800; letter-spacing: 2px;
+    opacity: 0; pointer-events: none;
+    transition: all .25s cubic-bezier(.2, 1.4, .4, 1);
+    white-space: nowrap;
+    z-index: 5;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .toast.win-text { color: #6fd3a0; border-color: rgba(111,211,160,.4); }
+  .toast.lose-text { color: #ff6b7a; border-color: rgba(255,107,122,.4); }
+
+  /* PWA 安装引导 */
+  .install-bar {
+    display: none;
+    margin-top: 10px;
+    align-items: center; justify-content: space-between; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(77, 124, 255, .14);
+    border: 1px solid rgba(77, 124, 255, .35);
+  }
+  .install-bar.show { display: flex; }
+  .install-bar span { font-size: 12.5px; color: #bcd0ff; flex: 1; }
+  .install-bar button {
+    border: none; border-radius: 8px; cursor: pointer;
+    background: linear-gradient(135deg, #4d7cff, #7b5cff);
+    color: #fff; font-size: 12.5px; font-weight: 700;
+    padding: 8px 14px;
+  }
+  .install-bar button:active { transform: scale(.94); }
+
+  .install-guide {
+    display: none;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    font-size: 13px;
+    line-height: 1.9;
+    color: #c6cde2;
+  }
+  .install-guide.open { display: block; animation: guideIn .25s ease; }
+  @keyframes guideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .install-guide b { color: #bcd0ff; }
+  .guide-note { margin-top: 6px; font-size: 11.5px; color: #7a83a6; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="title">
+    <h1>扫雷</h1>
+    <span>MINESWEEPER</span>
+  </div>
+
+  <div class="levels" id="levels">
+    <button data-level="easy" class="active">初级 9×9</button>
+    <button data-level="medium">中级 16×16</button>
+    <button data-level="hard">高级 30×16</button>
+    <button data-level="custom">自定义</button>
+  </div>
+
+  <div class="info-bar">
+    <div class="info-item"><span>💣</span><span class="num" id="mineCount">10</span></div>
+    <button class="face-btn" id="faceBtn" title="重新开始">😊</button>
+    <div class="info-item right"><span class="timer" id="timer">000</span><span>⏱</span></div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="tip-warn" id="tipWarn">📱 当前屏幕较窄，建议<strong>横屏</strong>或选择<strong>初级</strong>难度体验更佳</div>
+
+  <div class="install-bar" id="installBar">
+    <span>📲 添加到手机桌面，像 App 一样玩</span>
+    <button id="installBtn">查看方法</button>
+  </div>
+
+  <div class="install-guide" id="installGuide">
+    <div class="guide-step"><b>1.</b> 点击手机浏览器右上角的 <b>⋮</b> 菜单按钮</div>
+    <div class="guide-step"><b>2.</b> 选择「<b>添加到主屏幕</b>」</div>
+    <div class="guide-step"><b>3.</b> 点击「添加」，桌面就有扫雷图标啦 ✨</div>
+    <div class="guide-note">如果菜单里找不到，建议用 <b>Chrome</b> 或 <b>Edge</b> 浏览器打开</div>
+  </div>
+
+  <div class="tip-bar">
+    <b>轻点</b> 翻开 · <b>长按</b> 标旗（再次长按变 ? ）· <b>双击数字格</b> 快速展开周围<br>
+    首次点击必定安全 🍀
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 基础配置 ---------- */
+  const LEVELS = {
+    easy:   { rows: 9,  cols: 9,  mines: 10 },
+    medium: { rows: 16, cols: 16, mines: 40 },
+    hard:   { rows: 16, cols: 30, mines: 99 },
+  };
+
+  let level = 'easy';
+  let rows, cols, mines;
+  let grid = [];
+  let revealedCount = 0;
+  let flaggedCount = 0;
+  let started = false;
+  let gameOver = false;
+  let firstClickDone = false;
+  let seconds = 0;
+  let timerId = null;
+  let chordCell = null;
+  let touchTimer = null;
+  let lastTouch = null;
+
+  /* ---------- DOM ---------- */
+  const boardEl = document.getElementById('board');
+  const mineCountEl = document.getElementById('mineCount');
+  const timerEl = document.getElementById('timer');
+  const faceBtn = document.getElementById('faceBtn');
+  const toastEl = document.getElementById('toast');
+  const tipWarnEl = document.getElementById('tipWarn');
+  const levelBtns = [...document.querySelectorAll('.levels button')];
+  const installBar = document.getElementById('installBar');
+  const installBtn = document.getElementById('installBtn');
+
+  /* ---------- 音效 ---------- */
+  let audioCtx = null;
+  let muted = false;
+  function tone(freq, dur, type, vol) {
+    if (muted) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol || 0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (dur || 0.1));
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + (dur || 0.1));
+    } catch (e) { }
+  }
+  const sfx = {
+    reveal: function () { tone(340, 0.05, 'triangle', 0.05); },
+    flag:   function () { tone(560, 0.07, 'square', 0.04); tone(720, 0.06, 'square', 0.03); },
+    boom:   function () { tone(110, 0.5, 'sawtooth', 0.12); tone(70, 0.6, 'square', 0.1); },
+    win:    function () { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => tone(f, 0.16, 'triangle', 0.07), i * 120)); },
+  };
+
+  /* ---------- SVG 图标 ---------- */
+  const SVG_ICONS = {
+    flag: '<svg viewBox="0 0 20 20"><rect x="4.2" y="2" width="1.7" height="16" rx="0.8" fill="#d7dde8"/><path d="M5.9 2.4 L16.2 4.9 L5.9 7.2 Z" fill="#e0505f"/></svg>',
+    mine: '<svg viewBox="0 0 20 20"><circle cx="11" cy="11.5" r="6.2" fill="#242a3d"/><rect x="10" y="3.2" width="2" height="3.6" rx="1" fill="#242a3d"/><circle cx="11" cy="7.8" r="1.7" fill="#f0b429"/></svg>',
+    wrong: '<svg viewBox="0 0 20 20"><path d="M5.2 5.2 L14.8 14.8 M14.8 5.2 L5.2 14.8" stroke="#ff6b7a" stroke-width="2.6" stroke-linecap="round"/></svg>',
+  };
+
+  /* ---------- 初始化 ---------- */
+  function newGame(lv) {
+    level = lv;
+    const conf = LEVELS[level];
+    if (!conf) return;
+    rows = conf.rows; cols = conf.cols; mines = conf.mines;
+
+    grid = Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => ({ mine: false, revealed: false, flag: 0, adjacent: 0 }))
+    );
+    revealedCount = 0; flaggedCount = 0;
+    started = false; gameOver = false; firstClickDone = false;
+    seconds = 0; chordCell = null;
+    if (timerId) { clearInterval(timerId); timerId = null; }
+
+    mineCountEl.textContent = mines;
+    timerEl.textContent = '000';
+    faceBtn.textContent = '😊';
+    faceBtn.classList.remove('win');
+    boardEl.classList.remove('shake', 'celebrate');
+    hideToast();
+    renderBoard();
+  }
+
+  function placeMines(safeR, safeC) {
+    const excluded = new Set();
+    for (let r = safeR - 1; r <= safeR + 1; r++) {
+      for (let c = safeC - 1; c <= safeC + 1; c++) {
+        if (r >= 0 && r < rows && c >= 0 && c < cols) excluded.add(r * cols + c);
+      }
+    }
+    let placed = 0;
+    const total = rows * cols;
+    while (placed < mines) {
+      const idx = Math.floor(Math.random() * total);
+      const r = Math.floor(idx / cols), c = idx % cols;
+      if (excluded.has(idx) || grid[r][c].mine) continue;
+      grid[r][c].mine = true;
+      placed++;
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c].mine) continue;
+        let n = 0;
+        forEachNeighbor(r, c, (nr, nc) => { if (grid[nr][nc].mine) n++; });
+        grid[r][c].adjacent = n;
+      }
+    }
+  }
+
+  function forEachNeighbor(r, c, fn) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) fn(nr, nc);
+      }
+    }
+  }
+
+  /* ---------- 核心逻辑 ---------- */
+  function startTimer() {
+    if (started || gameOver) return;
+    started = true;
+    timerId = setInterval(() => {
+      if (gameOver) return;
+      seconds = Math.min(seconds + 1, 999);
+      timerEl.textContent = String(seconds).padStart(3, '0');
+    }, 1000);
+  }
+
+  function revealCell(r, c) {
+    if (gameOver) return;
+    const cell = grid[r][c];
+    if (cell.revealed || cell.flag === 1) return;
+
+    if (!firstClickDone) {
+      firstClickDone = true;
+      placeMines(r, c);
+      startTimer();
+    }
+
+    if (cell.mine) { lose(r, c); return; }
+
+    cell.revealed = true;
+    revealedCount++;
+    sfx.reveal();
+
+    if (cell.adjacent === 0) floodFill(r, c);
+
+    if (revealedCount === rows * cols - mines) win();
+    renderCell(r, c);
+  }
+
+  function floodFill(r, c) {
+    const queue = [[r, c]];
+    while (queue.length) {
+      const [cr, cc] = queue.pop();
+      forEachNeighbor(cr, cc, (nr, nc) => {
+        const nb = grid[nr][nc];
+        if (nb.revealed || nb.flag === 1 || nb.mine) return;
+        nb.revealed = true;
+        revealedCount++;
+        renderCell(nr, nc);
+        if (nb.adjacent === 0) queue.push([nr, nc]);
+      });
+    }
+  }
+
+  function cycleFlag(r, c) {
+    if (gameOver) return;
+    const cell = grid[r][c];
+    if (cell.revealed) return;
+    const oldFlag = cell.flag;
+    cell.flag = (cell.flag + 1) % 3;
+    if (oldFlag === 1) flaggedCount--;
+    if (cell.flag === 1) flaggedCount++;
+    renderCell(r, c);
+    updateMineDisplay();
+    if (cell.flag === 1) sfx.flag();
+  }
+
+  function updateMineDisplay() {
+    mineCountEl.textContent = Math.max(-99, Math.min(999, mines - flaggedCount));
+  }
+
+  function chord(r, c) {
+    if (gameOver) return;
+    const cell = grid[r][c];
+    if (!cell.revealed || cell.adjacent === 0) return;
+    let flagCount = 0;
+    const targets = [];
+    forEachNeighbor(r, c, (nr, nc) => {
+      if (grid[nr][nc].flag === 1) flagCount++;
+      else if (!grid[nr][nc].revealed) targets.push([nr, nc]);
+    });
+    if (flagCount !== cell.adjacent) return;
+    for (const [nr, nc] of targets) revealCell(nr, nc);
+  }
+
+  function win() {
+    if (gameOver) return;
+    gameOver = 'win';
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (grid[r][c].mine && grid[r][c].flag !== 1) {
+          grid[r][c].flag = 1;
+          flaggedCount++;
+        }
+      }
+    }
+    updateMineDisplay();
+    faceBtn.textContent = '😎';
+    faceBtn.classList.add('win');
+    boardEl.classList.add('celebrate');
+    showToast('🎉 你赢了！', 'win-text');
+    sfx.win();
+    renderBoard();
+  }
+
+  function lose(r, c) {
+    if (gameOver) return;
+    gameOver = 'lose';
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    faceBtn.textContent = '😵';
+    boardEl.classList.add('shake');
+    grid[r][c].hit = true;
+    for (let rr = 0; rr < rows; rr++) {
+      for (let cc = 0; cc < cols; cc++) {
+        const cell = grid[rr][cc];
+        if (cell.mine && cell.flag !== 1) { cell.revealed = true; cell.showMine = true; }
+        if (!cell.mine && cell.flag === 1) cell.wrongFlag = true;
+      }
+    }
+    showToast('💥 踩到雷啦', 'lose-text');
+    sfx.boom();
+    renderBoard();
+  }
+
+  /* ---------- 渲染（移动端：格子大小随屏幕自适应） ---------- */
+  function computeCellSize() {
+    // 卡片最大 470px，左右 padding 12 + 板 padding 8*2 + 间隙
+    const vw = Math.min(window.innerWidth, 470);
+    const avail = vw - 24 - 16 - (cols - 1) * 3;
+    const ideal = 46;
+    return Math.max(24, Math.min(ideal, Math.floor(avail / cols)));
+  }
+
+  function renderBoard() {
+    const s = computeCellSize();
+    boardEl.style.setProperty('--s', s + 'px');
+    boardEl.style.gridTemplateColumns = `repeat(${cols}, ${s}px)`;
+    boardEl.innerHTML = '';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        boardEl.appendChild(makeCellBtn(r, c));
+      }
+    }
+    tipWarnEl.classList.toggle('show', s < 32 && cols > 12);
+  }
+
+  function makeCellBtn(r, c) {
+    const btn = document.createElement('button');
+    btn.className = 'cell';
+    btn.dataset.r = r;
+    btn.dataset.c = c;
+    applyCellContent(btn, grid[r][c]);
+    bindEvents(btn, r, c);
+    return btn;
+  }
+
+  function renderCell(r, c) {
+    const btn = boardEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+    if (btn) applyCellContent(btn, grid[r][c]);
+  }
+
+  function applyCellContent(btn, cell) {
+    btn.className = 'cell';
+    btn.style.color = '';
+    btn.innerHTML = '';
+    if (cell.revealed) btn.classList.add('revealed');
+    if (cell.hit) btn.classList.add('mine-hit');
+    if (cell.wrongFlag) btn.classList.add('wrong-flag');
+
+    if (cell.revealed) {
+      if (cell.mine || cell.showMine) {
+        btn.innerHTML = SVG_ICONS.mine;
+      } else if (cell.wrongFlag) {
+        btn.innerHTML = SVG_ICONS.wrong;
+      } else if (cell.adjacent > 0) {
+        btn.textContent = cell.adjacent;
+        btn.classList.add('n' + cell.adjacent);
+      } else {
+        btn.textContent = '';
+      }
+    } else {
+      if (cell.flag === 1) {
+        btn.innerHTML = SVG_ICONS.flag;
+        btn.classList.add('flagged');
+      } else if (cell.flag === 2) {
+        btn.textContent = '?';
+        btn.classList.add('question');
+        btn.style.color = '#ffd166';
+      } else {
+        btn.textContent = '';
+      }
+    }
+  }
+
+  /* ---------- 事件绑定（触屏优先） ---------- */
+  function bindEvents(btn, r, c) {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('revealed')) {
+        chord(r, c);
+      } else {
+        revealCell(r, c);
+      }
+    });
+
+    // 长按标旗 / 问号
+    btn.addEventListener('touchstart', (e) => {
+      if (btn.classList.contains('revealed')) {
+        const now = Date.now();
+        if (lastTouch && lastTouch.r === r && lastTouch.c === c && now - lastTouch.t < 350) {
+          e.preventDefault();
+          chord(r, c);
+          lastTouch = null;
+          return;
+        }
+        lastTouch = { r, c, t: now };
+        return;
+      }
+      const t0 = Date.now();
+      touchTimer = setTimeout(() => {
+        if (!gameOver && !btn.classList.contains('revealed')) {
+          cycleFlag(r, c);
+        }
+        touchTimer = null;
+      }, 450);
+    }, { passive: true });
+    btn.addEventListener('touchend', () => {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    });
+    btn.addEventListener('touchmove', () => {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    });
+  }
+
+  /* ---------- 提示 ---------- */
+  let toastTimer = null;
+  function showToast(text, cls) {
+    toastEl.textContent = text;
+    toastEl.className = 'toast show ' + (cls || '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 1800);
+  }
+  function hideToast() {
+    toastEl.className = 'toast';
+  }
+
+  /* ---------- 难度切换 ---------- */
+  function setActiveLevel(lv) {
+    levelBtns.forEach(b => b.classList.toggle('active', b.dataset.level === lv));
+  }
+  levelBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.level === 'custom') {
+        customDialog();
+        return;
+      }
+      setActiveLevel(btn.dataset.level);
+      newGame(btn.dataset.level);
+    });
+  });
+
+  function customDialog() {
+    const w = prompt('请输入棋盘宽度（5 ~ 30）：', '12');
+    if (w === null) return;
+    const h = prompt('请输入棋盘高度（5 ~ 20）：', '12');
+    if (h === null) return;
+    const m = prompt('请输入地雷数量（1 ~ 总格数的一半）：', '20');
+    if (m === null) return;
+    const cw = parseInt(w, 10), ch = parseInt(h, 10), cm = parseInt(m, 10);
+    if (isNaN(cw) || isNaN(ch) || isNaN(cm) ||
+        cw < 5 || cw > 30 || ch < 5 || ch > 20 ||
+        cm < 1 || cm > Math.floor(cw * ch / 2)) {
+      alert('输入不合法，请重新设置 😅');
+      return;
+    }
+    LEVELS.custom = { rows: ch, cols: cw, mines: cm };
+    level = 'custom';
+    setActiveLevel('custom');
+    newGame('custom');
+  }
+
+  faceBtn.addEventListener('click', () => { newGame(level); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'F2') { e.preventDefault(); newGame(level); } });
+
+  /* ---------- 旋转/尺寸变化时重算格子 ---------- */
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderBoard, 200);
+  });
+
+  /* ---------- PWA 安装引导 ---------- */
+  let deferredPrompt = null;
+  const installGuide = document.getElementById('installGuide');
+
+  // 已作为 App 打开（从主屏幕进入）时不再显示引导
+  if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+    installBar.classList.remove('show');
+  }
+
+  // 支持一键安装的浏览器（HTTPS 环境）触发时：切换为「安装」按钮
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBar.classList.add('show');
+    installBtn.textContent = '安装';
+  });
+
+  // 页面加载完成后：无论是否支持一键安装都显示引导（局域网 HTTP 下为手动添加模式）
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      if (!installBar.classList.contains('show')) {
+        installBar.classList.add('show');
+        installBtn.textContent = '查看方法';
+      }
+    }, 600);
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') installBar.classList.remove('show');
+      deferredPrompt = null;
+      return;
+    }
+    installGuide.classList.toggle('open');
+  });
+
+  // Service Worker（离线缓存）
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  /* ---------- 启动 ---------- */
+  newGame('easy');
+})();
+</script>
+</body>
+</html>

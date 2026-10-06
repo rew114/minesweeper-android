@@ -301,6 +301,7 @@
   let chordCell = null;
   let touchTimer = null;
   let lastTouch = null;
+  let suppressClickCell = null;  // 长按/双击后抑制紧随的 click，避免误翻开
 
   /* ---------- DOM ---------- */
   const boardEl = document.getElementById('board');
@@ -598,6 +599,11 @@
   /* ---------- 事件绑定（触屏优先） ---------- */
   function bindEvents(btn, r, c) {
     btn.addEventListener('click', () => {
+      // 长按标旗 / 双击 chord 后，浏览器会补发一个 click，这里把它拦下
+      if (suppressClickCell === btn) {
+        suppressClickCell = null;
+        return;
+      }
       if (btn.classList.contains('revealed')) {
         chord(r, c);
       } else {
@@ -605,12 +611,12 @@
       }
     });
 
-    // 长按标旗 / 问号
+    // 触屏：长按标旗 / 问号，双击数字格快速展开
     btn.addEventListener('touchstart', (e) => {
       if (btn.classList.contains('revealed')) {
         const now = Date.now();
         if (lastTouch && lastTouch.r === r && lastTouch.c === c && now - lastTouch.t < 350) {
-          e.preventDefault();
+          suppressClickCell = btn;   // 双击 chord 后抑制随之而来的 click
           chord(r, c);
           lastTouch = null;
           return;
@@ -618,9 +624,9 @@
         lastTouch = { r, c, t: now };
         return;
       }
-      const t0 = Date.now();
       touchTimer = setTimeout(() => {
         if (!gameOver && !btn.classList.contains('revealed')) {
+          suppressClickCell = btn;   // 长按标旗后抑制随之而来的 click
           cycleFlag(r, c);
         }
         touchTimer = null;
@@ -631,6 +637,7 @@
     });
     btn.addEventListener('touchmove', () => {
       if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      suppressClickCell = null;   // 手指滑动离开时清掉抑制标记
     });
   }
 
